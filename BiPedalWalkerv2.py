@@ -1,7 +1,7 @@
-
+#!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[ ]:
 
 
 import gym
@@ -10,7 +10,7 @@ import tensorflow as tf
 from itertools import product as possibleIterations
 
 
-# In[5]:
+# In[ ]:
 
 
 class BipedalWalkerModel:
@@ -22,7 +22,7 @@ class BipedalWalkerModel:
         print(self.possibleActions.shape)
         self.initNetworkGraph()
         
-    def initNetworkGraph(self, learningRate = 0.1):
+    def initNetworkGraph(self, learningRate = 0.01):
         self.nInputLayer = self.env.observation_space.shape[0]  #24
         nHiddenLayer1 = 20
         nHiddenLayer2 = 40
@@ -51,7 +51,7 @@ class BipedalWalkerModel:
         self.train = optimizer.apply_gradients(gradientsandVariableFeedDict)
         self.saver = tf.train.Saver()
         
-    def trainNetwork(self, Iterations = 1000, killAfterSteps = 500, batchSize = 10):
+    def trainNetwork(self, Iterations = 1000, killAfterSteps = 1000, batchSize = 10, renderEnv = False):
         with tf.Session() as session:
             tf.global_variables_initializer().run()
             for iteration in range(Iterations):
@@ -63,6 +63,8 @@ class BipedalWalkerModel:
                     currentGradients = []
                     obs = self.env.reset()
                     for step in range(killAfterSteps):
+                        if renderEnv:
+                            self.env.render()
                         actionIndex, gradientsValue = session.run([self.logitIndex, self.gradients], feed_dict={self.X: obs.reshape(1, self.nInputLayer)})
                         action = self.possibleActions[actionIndex]
                         obs, reward, done, info = self.env.step(action[0])
@@ -73,7 +75,7 @@ class BipedalWalkerModel:
                     allRewards.append(currentRewards)
                     allGradients.append(currentGradients)
                 
-                allRewards = self.processRewards(allRewards, rate=0.9)
+                allRewards = self.processRewards(allRewards, rate=0.95)
                 feed_dict = {}
                 for i, gradientPlaceholder in enumerate(self.gradientPlaceholders):
                     newGradients = [reward * allGradients[gameIndex][step][i]
@@ -107,14 +109,14 @@ class BipedalWalkerModel:
         normalizedRewards = self.normalizeRewards(propagatedRewards)
         return normalizedRewards
     
-    def run(self, model_path = "./model.ckpt", maxSteps = 500 ):
+    def run(self, model_path = "./model.ckpt", maxSteps = 1000 ):
         env = gym.make("BipedalWalker-v2")
         with tf.Session() as sess:
             self.saver.restore(sess, model_path)
             obs = self.env.reset()
             for step in range(maxSteps):
                 self.env.render(mode="rgb_array")
-                action_index_val = action_index.eval(feed_dict={self.X: obs.reshape(1, self.nInputLayer)})
+                action_index_val = self.logitIndex.eval(feed_dict={self.X: obs.reshape(1, self.nInputLayer)})
                 action = self.possibleActions[action_index_val]
                 obs, reward, done, info = self.env.step(action[0])
                 if done:
@@ -124,9 +126,26 @@ class BipedalWalkerModel:
         
 
 
-# In[4]:
+# In[ ]:
 
 
 myModel = BipedalWalkerModel()
-myModel.trainNetwork()
+
+
+# In[ ]:
+
+
+myModel.trainNetwork(renderEnv = False)
+
+
+# In[ ]:
+
+
+myModel.run()
+
+
+# In[ ]:
+
+
+
 
