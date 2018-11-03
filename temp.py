@@ -46,7 +46,7 @@ class BipedalWalkerModel:
     def initNetworkGraph(self, learningRate = 0.01):
         self.nInputLayer = self.env.observation_space.shape[0]  #24
         nHiddenLayer1 = 30
-        #nHiddenLayer2 = 100
+#         nHiddenLayer2 = 100
         nOutputLayer = len(self.possibleActions) #81
         initializer = tf.variance_scaling_initializer()
         
@@ -91,10 +91,10 @@ class BipedalWalkerModel:
                             self.env.render()
                         actionIndex, gradientsValue = session.run([self.logitIndex, self.gradients], feed_dict={self.X: obs.reshape(1, self.nInputLayer)})
                         action = self.possibleActions[actionIndex]
-                        if random.randint(1,101) >= 5:
-                            obs, reward, done, info = self.env.step(action[0])
-                        else:
-                            obs, reward, done, info = self.env.step(self.env.action_space.sample())
+#                         if random.randint(1,101) > 2:
+                        obs, reward, done, info = self.env.step(action[0])
+#                         else:
+#                             obs, reward, done, info = self.env.step(self.env.action_space.sample())
                         #print(reward)
                         currentRewards.append(reward)
                         currentGradients.append(gradientsValue)
@@ -118,7 +118,7 @@ class BipedalWalkerModel:
                 iterationVsScore.append((iteration, maxScore))
                 if(maxScore > self.bestScore):
                     self.bestScore = maxScore
-                    self.saver.save(session, "models/simple30withRandomActionsAnd400iterarions/model.ckpt")
+                    self.saver.save(session, "models/simple30/model.ckpt")
                     #print(maxScore)
             return iterationVsScore
         
@@ -189,14 +189,14 @@ plt.plot(x, y)
 plt.xlabel('iterations')
 plt.ylabel('bestScore') 
 plt.title('Iteration Vs Score') 
-plt.savefig('models/simple30withRandomActionsAnd400iterarions/temp.png')
+plt.savefig('models/simple30/temp.png')
 plt.show() 
 
 
 # In[ ]:
 
 
-savePickle('models/simple30withRandomActionsAnd400iterarions/iterationVsScore',iterationVsScore)
+savePickle('models/simple30/iterationVsScore',iterationVsScore)
 
 
 # In[5]:
