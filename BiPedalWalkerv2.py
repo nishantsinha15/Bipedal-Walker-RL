@@ -1,7 +1,7 @@
-#!/usr/bin/env python
+
 # coding: utf-8
 
-# In[ ]:
+# In[1]:
 
 
 import gym
@@ -10,13 +10,32 @@ import tensorflow as tf
 from itertools import product as possibleIterations
 
 
-# In[ ]:
+# In[2]:
+
+
+import pickle
+
+
+def savePickle(name, toSave):
+    file = open(name, 'wb')
+    pickle.dump(toSave, file)
+    file.close()
+
+def loadPickle(name):
+    file = open(name, 'rb')
+    data = pickle.load(file)
+    file.close()
+    return data
+
+
+# In[3]:
 
 
 class BipedalWalkerModel:
     def __init__(self):
         self.env = gym.make("BipedalWalker-v2")
         self.obs = self.env.reset()
+        self.bestScore = 0
         possibleTorques = np.array([-1.0, 0.0, 1.0])
         self.possibleActions = np.array(list(possibleIterations(possibleTorques, possibleTorques, possibleTorques, possibleTorques)))
         print(self.possibleActions.shape)
@@ -24,14 +43,16 @@ class BipedalWalkerModel:
         
     def initNetworkGraph(self, learningRate = 0.01):
         self.nInputLayer = self.env.observation_space.shape[0]  #24
-        nHiddenLayer1 = 20
-        nHiddenLayer2 = 40
+        nHiddenLayer1 = 100
+        nHiddenLayer2 = 400
         nOutputLayer = len(self.possibleActions) #81
         initializer = tf.variance_scaling_initializer()
         
         self.X = tf.placeholder(tf.float32, shape=[None, self.nInputLayer])
         hidden1 = tf.layers.dense(self.X, nHiddenLayer1, activation=tf.nn.selu, kernel_initializer=initializer)
+        #hidden1 = tf.layers.dropout(hidden1, 0.9)
         hidden2 = tf.layers.dense(hidden1, nHiddenLayer2, activation=tf.nn.selu, kernel_initializer=initializer)
+        #hidden2 = tf.layers.dropout(hidden2, 0.9)
         logits = tf.layers.dense(hidden2, nOutputLayer, kernel_initializer=initializer)
         outputs = tf.nn.softmax(logits)
         
@@ -54,6 +75,7 @@ class BipedalWalkerModel:
     def trainNetwork(self, Iterations = 1000, killAfterSteps = 1000, batchSize = 10, renderEnv = False):
         with tf.Session() as session:
             tf.global_variables_initializer().run()
+            iterationVsScore=[]
             for iteration in range(Iterations):
                 print("\rIteration: {}/{}".format(iteration + 1, Iterations), end="")
                 allRewards = []
@@ -68,6 +90,7 @@ class BipedalWalkerModel:
                         actionIndex, gradientsValue = session.run([self.logitIndex, self.gradients], feed_dict={self.X: obs.reshape(1, self.nInputLayer)})
                         action = self.possibleActions[actionIndex]
                         obs, reward, done, info = self.env.step(action[0])
+                        #print(reward)
                         currentRewards.append(reward)
                         currentGradients.append(gradientsValue)
                         if done:
@@ -76,6 +99,7 @@ class BipedalWalkerModel:
                     allGradients.append(currentGradients)
                 
                 allRewards = self.processRewards(allRewards, rate=0.95)
+                #print(allRewards)
                 feed_dict = {}
                 for i, gradientPlaceholder in enumerate(self.gradientPlaceholders):
                     newGradients = [reward * allGradients[gameIndex][step][i]
@@ -84,8 +108,13 @@ class BipedalWalkerModel:
                     meanGradients = np.mean(newGradients, axis=0)
                     feed_dict[gradientPlaceholder] = meanGradients
                 session.run(self.train, feed_dict=feed_dict)
-                if iteration % 10 == 0:
-                    self.saver.save(session, "./model.ckpt")
+                
+                maxScore = max([sum(i) for i in allRewards])
+                iterationVsScore.append((iteration, maxScore))
+                if(maxScore > self.bestScore):
+                    self.saver.save(session, "models/bestModelOver2Layers/model.ckpt")
+                    #print(maxScore)
+            return iterationVsScore
         
         
         
@@ -126,7 +155,7 @@ class BipedalWalkerModel:
         
 
 
-# In[ ]:
+# In[4]:
 
 
 myModel = BipedalWalkerModel()
@@ -135,17 +164,37 @@ myModel = BipedalWalkerModel()
 # In[ ]:
 
 
-myModel.trainNetwork(renderEnv = False)
+iterationVsScore = myModel.trainNetwork(renderEnv = False)
+
+
+# In[ ]:
+
+
+import matplotlib.pyplot as plt 
+
+x=[]
+y=[]
+for i,j in iterationVsScore:
+    x.append(i)
+    y.append(j)
+    
+
+plt.plot(x, y) 
+plt.xlabel('iterations')
+plt.ylabel('bestScore') 
+plt.title('Iteration Vs Score') 
+plt.savefig('simpleModel100_100Score.png')
+plt.show() 
+
+
+# In[ ]:
+
+
+savePickle('simpleModel100_100Score',iterationVsScore)
 
 
 # In[ ]:
 
 
 myModel.run()
-
-
-# In[ ]:
-
-
-
 
