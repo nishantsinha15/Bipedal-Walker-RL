@@ -18,7 +18,7 @@ class DeepQAgent:
     def __init__(self, state_size, action_space):
         self.state_size = state_size
         self.action_size = 81 # todo check, looks shady
-        self.memory = deque(maxlen=2000)
+        self.memory = deque(maxlen=200000)
         self.gamma = 0.95
         self.epsilon = 1.0
         self.epsilon_min = 0.01
@@ -77,22 +77,25 @@ if __name__ == "__main__":
     done = False
     batch_size = 32
     c = 0
-
+    recent_average = deque(maxlen = 100)
     for e in range(EPISODES):
         state = env.reset()
         state = np.reshape(state, [1, state_size])
+        total_reward = 0
         for time in range(500):
             c += 1
             env.render()
             action = agent.act(state)
             next_state, reward, done, _ = env.step(action)
-            reward = reward if not done else -10
+            total_reward += reward
             next_state = np.reshape(next_state, [1, state_size])
             agent.remember(state, action, reward, next_state, done)
             state = next_state
             if done:
                 print("episode: {}/{}, score: {}, e: {:.2}"
-                      .format(e, EPISODES, time, agent.epsilon))
+                      .format(e, EPISODES, total_reward, agent.epsilon))
+                recent_average.append(total_reward)
+                print("Recent Average = ", sum(recent_average)/len(recent_average))
                 break
             if len(agent.memory) > batch_size:
                 agent.replay(batch_size, agent2)
