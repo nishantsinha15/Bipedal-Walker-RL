@@ -18,10 +18,10 @@ class DeepQAgent:
     def __init__(self, state_size, action_space):
         self.state_size = state_size
         self.action_size = 81 # todo check, looks shady
-        self.memory = deque(maxlen=200000)
+        self.memory = deque(maxlen=200000) # chaged this from 2000
         self.gamma = 0.95
         self.epsilon = 1.0
-        self.epsilon_min = 0.01
+        self.epsilon_min = 0.1 # changed this from 0.01
         self.epsilon_decay = 0.995
         self.learning_rate = 0.001
         self.model = self._build_model()
@@ -32,9 +32,9 @@ class DeepQAgent:
 
     def _build_model(self):
         model = Sequential()
-        model.add(Dense(100, input_dim=self.state_size, activation='relu'))
+        model.add(Dense(100, input_dim=self.state_size, activation='relu')) # changed layer count from 24
         model.add(Dense(100, activation='relu'))
-        model.add(Dense(self.action_size, activation='softmax'))
+        model.add(Dense(self.action_size, activation='softmax')) # changed this from linear
         model.compile(loss='mse', optimizer=sgd(lr=self.learning_rate))
         return model
 
@@ -95,13 +95,14 @@ if __name__ == "__main__":
                 print("episode: {}/{}, score: {}, e: {:.2}"
                       .format(e, EPISODES, total_reward, agent.epsilon))
                 recent_average.append(total_reward)
-                print("Recent Average = ", sum(recent_average)/len(recent_average))
+                print("c = ", c, " Recent Average = ", sum(recent_average)/len(recent_average))
                 break
             if len(agent.memory) > batch_size:
                 agent.replay(batch_size, agent2)
-            if c >= 10000:
+            if c >= 1000:
                 print('updating model')
                 c = 0
-                agent2 = copy.deepcopy(agent)
+                # agent2 = copy.deepcopy(agent)
+                agent2.model.set_weights(agent.model.get_weights())
         if e % 50 == 0:
             agent.save("Bipedal-dqn-testing.h5")
