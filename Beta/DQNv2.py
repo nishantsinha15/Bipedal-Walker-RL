@@ -32,9 +32,9 @@ class DeepQAgent:
 
     def _build_model(self):
         model = Sequential()
-        model.add(Dense(24, input_dim=self.state_size, activation='relu'))
-        model.add(Dense(24, activation='relu'))
-        model.add(Dense(self.action_size, activation='linear'))
+        model.add(Dense(100, input_dim=self.state_size, activation='relu'))
+        model.add(Dense(100, activation='relu'))
+        model.add(Dense(self.action_size, activation='softmax'))
         model.compile(loss='mse', optimizer=sgd(lr=self.learning_rate))
         return model
 
@@ -80,7 +80,7 @@ if __name__ == "__main__":
         state = env.reset()
         state = np.reshape(state, [1, state_size])
         for time in range(500):
-            env.render()
+            # env.render()
             action = agent.act(state)
             next_state, reward, done, _ = env.step(action)
             reward = reward if not done else -10
@@ -94,4 +94,4 @@ if __name__ == "__main__":
             if len(agent.memory) > batch_size:
                 agent.replay(batch_size)
         if e % 50 == 0:
-            agent.save("Bipedal-dqn-testing.h5")
+            agent.save("Bipedal-dqn.h5")

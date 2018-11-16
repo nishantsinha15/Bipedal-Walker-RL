@@ -6,7 +6,7 @@ from keras.models import Sequential
 from keras.layers import Dense
 from keras.optimizers import sgd
 from itertools import product as possibleIterations
-
+import copy
 EPISODES = 1000
 
 def get_actions():
@@ -43,17 +43,17 @@ class DeepQAgent:
         self.memory.append((state, action_index, reward, next_state, done))
 
     def act(self, state):
-        if np.random.rand() <= self.epsilon: # todo make this epsilon greedy
+        if np.random.rand() <= self.epsilon:
             return self.action_space[np.random.choice([i for i in range(len(self.action_space))])]
         act_values = self.model.predict(state) # what does this return
         return self.get_action_from_prediction(act_values)
 
-    def replay(self, batch_size):
+    def replay(self, batch_size, agent2):
         minibatch = random.sample(self.memory, batch_size)
         for state, action, reward, next_state, done in minibatch:
             target = reward
             if not done:
-                target = (reward + self.gamma * np.amax(self.model.predict(next_state)[0])) # Returns q-values
+                target = (reward + self.gamma * np.amax(agent2.model.predict(next_state)[0])) # Returns q-values
             target_f = self.model.predict(state)
             target_f[0][action] = target
             self.model.fit(state, target_f, epochs=1, verbose=0)
@@ -73,13 +73,16 @@ if __name__ == "__main__":
     actions_space = get_actions()
     action_size = len(actions_space)
     agent = DeepQAgent(state_size, actions_space)
+    agent2 = DeepQAgent(state_size, actions_space)
     done = False
     batch_size = 32
+    c = 0
 
     for e in range(EPISODES):
         state = env.reset()
         state = np.reshape(state, [1, state_size])
         for time in range(500):
+            c += 1
             env.render()
             action = agent.act(state)
             next_state, reward, done, _ = env.step(action)
@@ -92,6 +95,9 @@ if __name__ == "__main__":
                       .format(e, EPISODES, time, agent.epsilon))
                 break
             if len(agent.memory) > batch_size:
-                agent.replay(batch_size)
+                agent.replay(batch_size, agent2)
+            if c >= 10000:
+                c = 0
+                agent2 = copy.deepcopy(agent)
         if e % 50 == 0:
             agent.save("Bipedal-dqn-testing.h5")
