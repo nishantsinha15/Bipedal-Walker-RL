@@ -32,9 +32,9 @@ class DeepQAgent:
 
     def _build_model(self):
         model = Sequential()
-        model.add(Dense(24, input_dim=self.state_size, activation='relu'))
-        model.add(Dense(24, activation='relu'))
-        model.add(Dense(self.action_size, activation='linear'))
+        model.add(Dense(100, input_dim=self.state_size, activation='relu'))
+        model.add(Dense(100, activation='relu'))
+        model.add(Dense(self.action_size, activation='softmax'))
         model.compile(loss='mse', optimizer=sgd(lr=self.learning_rate))
         return model
 
@@ -97,6 +97,7 @@ if __name__ == "__main__":
             if len(agent.memory) > batch_size:
                 agent.replay(batch_size, agent2)
             if c >= 10000:
+                print('updating model')
                 c = 0
                 agent2 = copy.deepcopy(agent)
         if e % 50 == 0:
