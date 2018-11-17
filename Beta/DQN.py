@@ -54,7 +54,7 @@ class DeepQAgent:
             target = reward
             if not done:
                 target = (reward + self.gamma * np.amax(agent2.model.predict(next_state)[0])) # Returns q-values
-            target_f = self.model.predict(state)
+            target_f = agent2.model.predict(state)
             target_f[0][action] = target
             self.model.fit(state, target_f, epochs=1, verbose=0)
         if self.epsilon > self.epsilon_min:
@@ -102,7 +102,6 @@ if __name__ == "__main__":
             if c >= 1000:
                 print('updating model')
                 c = 0
-                # agent2 = copy.deepcopy(agent)
                 agent2.model.set_weights(agent.model.get_weights())
         if e % 50 == 0:
-            agent.save("Bipedal-dqn-testing.h5")
+            agent.save("Bipedal-dqn-nishant-v2.h5")
