@@ -4,7 +4,7 @@ import numpy as np
 from collections import deque
 from keras.models import Sequential
 from keras.layers import Dense
-from keras.optimizers import sgd
+from keras.optimizers import sgd,Adam
 from itertools import product as possibleIterations
 import matplotlib.pyplot as plt
 
@@ -26,7 +26,7 @@ def plot(data):
         x.append(i)
         y.append(j)
     plt.plot(x,y)
-    plt.savefig('temp.png')
+    plt.savefig('ddqn3_updated_epsilon_alpha.png')
 
 class State:
     def __init__(self, states, actions):
@@ -37,11 +37,14 @@ class State:
         ret = []
         for i in range(3):
             ret = ret + list(self.states[i][0])
-            ret.append(actions_space.tolist().index(self.actions[i].tolist()))
+            # ret.append(actions_space.tolist().index(self.actions[i].tolist()))
+            ret = ret + self.actions[i].tolist()
         ret = ret + list(self.states[3][0])
+        # print("Before", ret)
         ret = np.array(ret)
-        ret = np.reshape(ret, [1, 24*4 + 3])
-
+        ret = np.reshape(ret, [1, 24*4 + 4*3])
+        # print(ret.shape)
+        # print(ret)
         return ret
 
 
@@ -54,8 +57,9 @@ class DeepQAgent:
         self.gamma = 0.95
         self.epsilon = 1.0
         self.epsilon_min = 0.01
-        self.epsilon_decay = 0.995
-        self.learning_rate = 0.001
+        self.epsilon_decay = 0.95
+        self.learning_rate = 1
+        self.min_learning_rate = 0.05
         self.model = self._build_model()
         self.action_space = action_space
 
@@ -66,8 +70,8 @@ class DeepQAgent:
         model = Sequential()
         model.add(Dense(100, input_dim=self.state_size, activation='relu'))  # changed layer count from 24
         model.add(Dense(80, activation='relu'))
-        model.add(Dense(self.action_size, activation='linear'))  # changed this from linear
-        model.compile(loss='mse', optimizer=sgd(lr=self.learning_rate))
+        model.add(Dense(self.action_size, activation='relu'))  # changed this from linear
+        model.compile(loss='mse', optimizer=Adam(lr=self.learning_rate))
         return model
 
     def remember(self, state, action, reward, next_state, done):
@@ -81,16 +85,24 @@ class DeepQAgent:
         return self.get_action_from_prediction(act_values)
 
     def replay(self, batch_size, agent2):
-        minibatch = random.sample(self.memory, batch_size)
+        minibatch = random.sample(self.memory, batch_size -1)
+        minibatch += [self.memory[-1]]
         for state, action, reward, next_state, done in minibatch:
             target = reward
             if not done:
-                target = (reward + self.gamma * np.amax(agent2.model.predict(next_state.get_input_layer())[0]))  # Returns q-values
-            target_f = agent2.model.predict(state.get_input_layer())
+                best_action = -1
+                val = -100000000
+                temp_val = self.model.predict(next_state.get_input_layer())[0]
+                for a in range(len(self.action_space)):
+                    if temp_val[a] > val:
+                        val = temp_val[a]
+                        best_action = a
+                '''check understading '''
+                target = (reward + self.gamma * agent2.model.predict(next_state.get_input_layer())[0][best_action])  # Double Q learning
+            target_f = self.model.predict(state.get_input_layer())
             target_f[0][action] = target
+            '''check understading '''
             self.model.fit(state.get_input_layer(), target_f, epochs=1, verbose=0)
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
 
     def load(self, name):
         self.model.load_weights(name)
@@ -104,8 +116,10 @@ if __name__ == "__main__":
     env = gym.make('BipedalWalker-v2')
     state_size = env.observation_space.shape[0]
     action_size = len(actions_space)
-    agent = DeepQAgent(state_size*4 + 3, actions_space)
-    agent2 = DeepQAgent(state_size*4 + 3, actions_space)
+    agent1 = DeepQAgent(state_size*4 + 4*3, actions_space)
+    agent2 = DeepQAgent(state_size*4 + 4*3, actions_space)
+    agent1.load("agent1-ddqn-nishant-v2.h5")
+    agent2.load("agent2-ddqn-nishant-v2.h5")
     done = False
     batch_size = 32
     c = 0
@@ -121,9 +135,13 @@ if __name__ == "__main__":
         my_state.append(state)
         flag = True
         for time in range(500):
-            c += 1
             # env.render()
-            action = agent.act(curr_state)
+            coin_toss = random.random() <= 0.5
+            if coin_toss:
+                action = agent1.act(curr_state)
+            else:
+                action = agent2.act(curr_state)
+
             my_actions.append(action)
 
             next_state, reward, done, _ = env.step(action)
@@ -133,11 +151,11 @@ if __name__ == "__main__":
             my_state.append(state)
 
             if done:
-                print("episode: {}/{}, score: {}, e: {:.2}"
-                      .format(e, EPISODES, total_reward, agent.epsilon))
+                print("episode: {}/{}, score: {}, e: {:.2}, alpha1: {}, alpha2: {}"
+                      .format(e, EPISODES, total_reward, agent1.epsilon, agent2.learning_rate, agent1.learning_rate))
                 recent_average.append(total_reward)
                 av = sum(recent_average) / len(recent_average)
-                print("c = ", c, " Recent Average = ", av)
+                print( " Recent Average = ", av)
                 eVSs.append((e+1,av))
                 break
 
@@ -146,17 +164,31 @@ if __name__ == "__main__":
                 if flag:
                     prev_state = curr_state
                     flag = False
-                agent.remember(prev_state, action, reward/400, curr_state, done)
+                if coin_toss:
+                    agent1.remember(prev_state, action, reward, curr_state, done)
+                else:
+                    agent2.remember(prev_state, action, reward, curr_state, done)
+
                 prev_state = curr_state
 
-            if len(agent.memory) > batch_size:
-                agent.replay(batch_size, agent2)
-            if c >= 1000:
-                print('updating model')
-                c = 0
-                agent2.model.set_weights(agent.model.get_weights())
+            if coin_toss and len(agent1.memory) > batch_size:
+                agent1.replay(batch_size, agent2)
+            elif not coin_toss and len(agent2.memory) > batch_size:
+                agent2.replay(batch_size, agent1)
+
+        if agent1.epsilon > agent1.epsilon_min:
+            agent1.epsilon *= agent1.epsilon_decay
+        if agent1.learning_rate > agent1.min_learning_rate:
+            agent1.learning_rate *= agent1.epsilon_decay
+
+        if agent2.epsilon > agent2.epsilon_min:
+            agent2.epsilon *= agent2.epsilon_decay
+        if agent2.learning_rate > agent2.min_learning_rate:
+            agent2.learning_rate *= agent2.epsilon_decay
+
         if e % 100 == 0:
-            agent.save("Bipedal-dqn-nishant-v2.h5")
+            agent1.save("agent1-ddqn-nishant-v2.h5")
+            agent2.save("agent2-ddqn-nishant-v2.h5")
         if e % 10:
             plot(eVSs)
 
