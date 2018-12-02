@@ -32,7 +32,7 @@ def mean_q(y_true, y_pred):
 class DDPGAgent(Agent):
     """Write me
     """
-    def __init__(self,env,  nb_actions, actor, critic, critic_action_input, memory,e = 1, steps = 500000,
+    def __init__(self,env,  nb_actions, actor, critic, critic_action_input, memory,e = 1,emin = 0.1, steps = 500000,
                  gamma=.99, batch_size=32, nb_steps_warmup_critic=1000, nb_steps_warmup_actor=1000,
                  train_interval=1, memory_interval=1, delta_range=None, delta_clip=np.inf,
                  random_process=None, custom_model_objects={}, target_model_update=.001, **kwargs):
@@ -64,6 +64,7 @@ class DDPGAgent(Agent):
         # Parameters.
         self.env = env
         self.e = e
+        self.emin = emin
         self.steps = steps
         self.currentStep =1
         self.nb_actions = nb_actions
@@ -219,8 +220,8 @@ class DDPGAgent(Agent):
             action += noise
         self.currentStep += 1
         if self.currentStep % 10000 == 0:
-            print("e:", self.e * (1- self.currentStep/self.steps))
-        if random.random() < self.e * (1- self.currentStep/self.steps):
+            print("e:", self.e * (1- self.currentStep/self.steps) + self.emin)
+        if random.random() < self.e :#* (1- self.currentStep/self.steps) + self.emin:
             action = self.env.action_space.sample()
         return action
 
@@ -402,17 +403,17 @@ memory = SequentialMemory(limit=500000, window_length=1)
 
 #random_process = OrnsteinUhlenbeckProcess(size=nb_actions, theta=.15, mu=0., sigma=.5,sigma_min = .2)
 agent = DDPGAgent(env = env, nb_actions=nb_actions, actor=actor, critic=critic, critic_action_input=action_input,
-                  memory=memory, gamma=.99,steps = 5000000, e = 0.5)
+                  memory=memory, gamma=.99,steps = 5000000, e = 0.1, emin= 0.0)
 agent.compile(Adam(lr=.001, clipnorm=1.), metrics=['mae'])
 
 # Okay, now it's time to learn something! We visualize the training here for show, but this
 # slows down training quite a lot. You can always safely abort the training prematurely using
 # Ctrl + C.
-agent.load_weights('model_20000000/ddpg_{}_weights.h5f'.format(ENV_NAME))
-agent.fit(env, nb_steps=5000000, visualize=False, verbose=1, nb_max_episode_steps=2000)
+agent.load_weights('ddpg_{}_weights.h5f'.format(ENV_NAME))
+# agent.fit(env, nb_steps=5000000, visualize=False, verbose=1, nb_max_episode_steps=2000)
 
-# After training is done, we save the final weights.
-agent.save_weights('ddpg_{}_weights.h5f'.format(ENV_NAME), overwrite=True)
+# # After training is done, we save the final weights.
+# agent.save_weights('ddpg_{}_weights.h5f'.format(ENV_NAME), overwrite=True)
 
 # Finally, evaluate our algorithm for 5 episodes.
-agent.test(env, nb_episodes=5, visualize=False, nb_max_episode_steps=2000)
+agent.test(env, nb_episodes=100, visualize=False, nb_max_episode_steps=2000)
