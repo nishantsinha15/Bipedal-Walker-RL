@@ -23,170 +23,144 @@ def loadPickle(name):
 
 
 
-class NeuralNet: 
+class Network: 
     def __init__(self, layers):     
-        self.fitness = 0.0
+        self.fitnessScore = 0.0
         self.layers = layers
-        self.weights = []
-        self.biases = []
+        self.nodeWeights = []
+        self.nodeBiases = []
         for i in range(len(layers) - 1):
-            self.weights.append( np.random.uniform(low=-1, high=1, size=(layers[i], layers[i+1])).tolist() )
-            self.biases.append( np.random.uniform(low=-1, high=1, size=(layers[i+1])).tolist())
+            self.nodeWeights.append( np.random.uniform(low=-1, high=1, size=(layers[i], layers[i+1])).tolist() )
+            self.nodeBiases.append( np.random.uniform(low=-1, high=1, size=(layers[i+1])).tolist())
   
-    def getOutput(self, input):
-        output = input
+    def getAction(self, input):
+        action = input
         for i in range(len(self.layers)-1):
-            output = np.reshape( np.matmul(output, self.weights[i]) + self.biases[i], (self.layers[i+1]))
-        return output
+            action = np.reshape( np.matmul(action, self.nodeWeights[i]) + self.nodeBiases[i], (self.layers[i+1]))
+        return action
 
     def evaluate(self):
         observation = env.reset()
         totalReward = 0
         for _ in range(MAX_STEPS):
-            action = self.getOutput(observation)
+            action = self.getAction(observation)
             observation, reward, done, _ = env.step(action)
             totalReward += reward
             if done:
                 break
-        self.fitness = totalReward
+        self.fitnessScore = totalReward
 
 
 class Population :
     def __init__(self, populationCount, mutationRate, layers):
         self.layers = layers
-        self.popCount = populationCount
-        self.m_rate = mutationRate
-        self.population = [ NeuralNet(layers) for i in range(populationCount)]
+        self.populationCount = populationCount
+        self.mutationRate = mutationRate
+        self.population = [ Network(layers) for i in range(self.populationCount)]
 
 
 
-    def createChild(self, nn1, nn2):
-        child = NeuralNet(self.layers)
-        for i in range(len(child.weights)):
-            for j in range(len(child.weights[i])):
-                for k in range(len(child.weights[i][j])):
-                    if random.random() > self.m_rate:
-                        if random.random() < nn1.fitness / (nn1.fitness+nn2.fitness):
-                            child.weights[i][j][k] = nn1.weights[i][j][k]
+    def createChild(self, network1, network2):
+        child = Network(self.layers)
+        for i in range(len(child.nodeWeights)):
+            for j in range(len(child.nodeWeights[i])):
+                for k in range(len(child.nodeWeights[i][j])):
+                    if random.random() > self.mutationRate:
+                        if random.random() < network1.fitnessScore / (network1.fitnessScore+network2.fitnessScore):
+                            child.nodeWeights[i][j][k] = network1.nodeWeights[i][j][k]
                         else :
-                            child.weights[i][j][k] = nn2.weights[i][j][k]
-                        
-
-        for i in range(len(child.biases)):
-            for j in range(len(child.biases[i])):
-                if random.random() > self.m_rate:
-                    if random.random() < nn1.fitness / (nn1.fitness+nn2.fitness):
-                        child.biases[i][j] = nn1.biases[i][j]
+                            child.nodeWeights[i][j][k] = network2.nodeWeights[i][j][k]
+        for i in range(len(child.nodeBiases)):
+            for j in range(len(child.nodeBiases[i])):
+                if random.random() > self.mutationRate:
+                    if random.random() < network1.fitnessScore / (network1.fitnessScore+network2.fitnessScore):
+                        child.nodeBiases[i][j] = network1.nodeBiases[i][j]
                     else:
-                        child.biases[i][j] = nn2.biases[i][j]
+                        child.nodeBiases[i][j] = network2.nodeBiases[i][j]
 
         return child
 
 
-    def createNewGeneration(self):    
-        nextGen = []
-        randomIntroductions = [ NeuralNet(self.layers) for i in range(10)]
-        for t in randomIntroductions:
-            t.evaluate()
-        self.population += randomIntroductions
-        self.population.sort(key=lambda x: x.fitness, reverse=True)
-        for i in range(self.popCount):
-            if random.random() < float(self.popCount-i)/self.popCount:
-                nextGen.append(copy.deepcopy(self.population[i]))
-
-        fitnessSum = [0]
-        minFit = min([i.fitness for i in nextGen])
-        for i in range(len(nextGen)):
-            fitnessSum.append(fitnessSum[i]+(nextGen[i].fitness-minFit)**4)
-        
-        while(len(nextGen) < self.popCount):
-            r1 = random.uniform(0, fitnessSum[-1] )
-            r2 = random.uniform(0, fitnessSum[-1] )
-            i1 = bisect.bisect_left(fitnessSum, r1)
-            i2 = bisect.bisect_left(fitnessSum, r2)
-            if 0 <= i1 < len(nextGen) and 0 <= i2 < len(nextGen) :
-                nextGen.append( self.createChild(nextGen[i1], nextGen[i2]) )
-        self.population = nextGen
-
-
-
-
-def replayBestBots(bestNeuralNets, steps, sleep):  
-    choice = input("Do you want to watch the replay ?[Y/N] : ")
-    if choice=='Y' or choice=='y':
-        for i in range(len(bestNeuralNets)):
-            if (i+1)%steps == 0 :
-                observation = env.reset()
-                totalReward = 0
-                for step in range(MAX_STEPS):
-                    env.render()
-                    time.sleep(sleep)
-                    action = bestNeuralNets[i].getOutput(observation)
-                    observation, reward, done, info = env.step(action)
-                    totalReward += reward
-                    if done:
-                        observation = env.reset()
-                        break
-                print("Generation %3d | Expected Fitness of %4d | Actual Fitness = %4d" % (i+1, bestNeuralNets[i].fitness, totalReward))
-
-
-
 
 env = gym.make(GAME)
-observation = env.reset()
-in_dimen = env.observation_space.shape[0]
-out_dimen = env.action_space.shape[0]
-layers =  [in_dimen, 13, 8, 13, out_dimen]
-pop = Population(POPULATION_COUNT, MUTATION_RATE,layers)
-bestNeuralNets = []
+layers =  [env.observation_space.shape[0], 100, 80, 25, env.action_space.shape[0]]
+pool = Population(POPULATION_COUNT, MUTATION_RATE,layers)
+
+bestNetworks = []
 plotData =[]
+for gen in range(MAX_GENERATIONS):
+    averageFitness = 0.0
+    minFitness =  10000000
+    maxFitness = -10000000
+    maxNetwork = None
+
+    # evaluation
+    for nn in pool.population:
+        observation = env.reset()
+        totalReward = 0
+        for step in range(MAX_STEPS):
+            #env.render()
+            action = nn.getAction(observation)
+            observation, reward, done, info = env.step(action)
+            totalReward += reward
+            if done:
+                break
+
+        nn.fitnessScore = totalReward
+        minFitness = min(minFitness, nn.fitnessScore)
+        averageFitness += nn.fitnessScore
+        if nn.fitnessScore > maxFitness :
+            maxFitness = nn.fitnessScore
+            maxNetwork = copy.deepcopy(nn)
+            savePickle('bestWeight',maxNetwork)
+
+    bestNetworks.append(maxNetwork)
+    averageFitness/=pool.populationCount
+    print("Generation : ",gen+1," | Av : ", averageFitness, " | Max: ", maxFitness)
+
+    # new generation creation
+    nextGeneration = []
+    randomIntroductions = [ Network(pool.layers) for i in range(10)]
+    for t in randomIntroductions:
+        t.evaluate()
+    pool.population += randomIntroductions
+    pool.population.sort(key=lambda x: x.fitnessScore, reverse=True)
+    for i in range(pool.populationCount):
+        if random.random() < float(pool.populationCount-i)/pool.populationCount:
+            nextGeneration.append(copy.deepcopy(pool.population[i]))
+
+    fitnessSum = [0]
+    minFitness = min([i.fitnessScore for i in nextGeneration])
+    for i in range(len(nextGeneration)):
+        fitnessSum.append(fitnessSum[i]+(nextGeneration[i].fitnessScore-minFitness)**4)
+    
+    while(len(nextGeneration) < pool.populationCount):
+        random1 = random.uniform(0, fitnessSum[-1] )
+        random2 = random.uniform(0, fitnessSum[-1] )
+        index1 = bisect.bisect_left(fitnessSum, random1)
+        index2 = bisect.bisect_left(fitnessSum, random2)
+        if 0 <= index1 < len(nextGeneration) and 0 <= index2 < len(nextGeneration) :
+            nextGeneration.append( pool.createChild(nextGeneration[index1], nextGeneration[index2]) )
+    pool.population = nextGeneration
 
 
-# for gen in range(MAX_GENERATIONS):
-#     genAvgFit = 0.0
-#     minFit =  1000000
-#     maxFit = -1000000
-#     maxNeuralNet = None
-#     for nn in pop.population:
-#         observation = env.reset()
-#         totalReward = 0
-#         for step in range(MAX_STEPS):
-#             #env.render()
-#             action = nn.getOutput(observation)
-#             observation, reward, done, info = env.step(action)
-#             totalReward += reward
-#             if done:
-#                 break
-
-#         nn.fitness = totalReward
-#         minFit = min(minFit, nn.fitness)
-#         genAvgFit += nn.fitness
-#         if nn.fitness > maxFit :
-#             maxFit = nn.fitness
-#             maxNeuralNet = copy.deepcopy(nn)
-#             savePickle('bestWeight',maxNeuralNet)
-
-#     bestNeuralNets.append(maxNeuralNet)
-#     genAvgFit/=pop.popCount
-#     print("Generation : %3d  |  Min : %5.0f  |  Avg : %5.0f  |  Max : %5.0f  " % (gen+1, minFit, genAvgFit, maxFit) )
-#     pop.createNewGeneration()
-#     plotData.append([gen+1, genAvgFit, maxFit])
-#     savePickle('plotData',plotData)
+    plotData.append([gen+1, averageFitness, maxFitness])
+    savePickle('plotData',plotData)
 
 
-nn = loadPickle('bestWeight')
+# nn = loadPickle('bestWeightBackup')
 
-for _ in range(10):
-    observation = env.reset()
-    totalReward = 0
-    for step in range(MAX_STEPS):
-        action = nn.getOutput(observation)
-        observation, reward, done, info = env.step(action)
-        totalReward += reward
-        if done:
-            break
+# for _ in range(10):
+#     observation = env.reset()
+#     totalReward = 0
+#     for step in range(MAX_STEPS):
+#         action = nn.getAction(observation)
+#         observation, reward, done, info = env.step(action)
+#         totalReward += reward
+#         if done:
+#             break
 
-    print(totalReward)
+#     print(totalReward)
 
 
 
